@@ -174,9 +174,9 @@ class QueueManager(
             enableDirectPlay = enableDirectPlay,
             enableDirectStream = enableDirectStream,
         ).onSuccess { jellyfinMediaSource ->
-            // Ensure transcoding of the current element is stopped
+            // Ensure playback on the server (encoding and live streams) of the current element is stopped
             getCurrentMediaSourceOrNull()?.let { oldMediaSource ->
-                viewModel.stopTranscoding(oldMediaSource as RemoteJellyfinMediaSource)
+                viewModel.stopServerPlayback(oldMediaSource as RemoteJellyfinMediaSource)
             }
 
             _currentMediaSource.value = jellyfinMediaSource

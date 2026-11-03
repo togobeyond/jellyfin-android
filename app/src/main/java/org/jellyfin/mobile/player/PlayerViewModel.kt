@@ -71,10 +71,12 @@ import org.jellyfin.sdk.api.client.ApiClient
 import org.jellyfin.sdk.api.client.exception.ApiClientException
 import org.jellyfin.sdk.api.client.extensions.displayPreferencesApi
 import org.jellyfin.sdk.api.client.extensions.hlsSegmentApi
+import org.jellyfin.sdk.api.client.extensions.mediaInfoApi
 import org.jellyfin.sdk.api.client.extensions.playStateApi
 import org.jellyfin.sdk.api.client.extensions.userApi
 import org.jellyfin.sdk.api.operations.DisplayPreferencesApi
 import org.jellyfin.sdk.api.operations.HlsSegmentApi
+import org.jellyfin.sdk.api.operations.MediaInfoApi
 import org.jellyfin.sdk.api.operations.PlayStateApi
 import org.jellyfin.sdk.api.operations.UserApi
 import org.jellyfin.sdk.model.api.ChapterInfo
@@ -102,6 +104,7 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application),
     private val displayPreferencesApi: DisplayPreferencesApi = apiClient.displayPreferencesApi
     private val playStateApi: PlayStateApi = apiClient.playStateApi
     private val hlsSegmentApi: HlsSegmentApi = apiClient.hlsSegmentApi
+    private val mediaInfoApi: MediaInfoApi = apiClient.mediaInfoApi
     private val userApi: UserApi = apiClient.userApi
 
     private val appPreferences: AppPreferences by inject()
@@ -497,29 +500,54 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application),
                         ),
                     )
                 }
-
-                // Mark video as watched if playback finished
-                if (hasFinished) {
-                    withContext(Dispatchers.IO) {
-                        playStateApi.markPlayedItem(itemId = mediaSource.itemId)
-                    }
-                }
-
-                // Stop active encoding if transcoding
-                stopTranscoding(mediaSource)
             } catch (e: ApiClientException) {
                 Timber.e(e, "Failed to report playback stop")
             }
+
+            // Mark video as watched if playback finished
+            if (hasFinished) {
+                try {
+                    withContext(Dispatchers.IO) {
+                        playStateApi.markPlayedItem(itemId = mediaSource.itemId)
+                    }
+                } catch (e: ApiClientException) {
+                    Timber.e(e, "Failed to mark item as played")
+                }
+            }
+
+            // Stop the server side playback session, this releases the encoder and tuner
+            stopServerPlayback(mediaSource)
         }
     }
 
-    suspend fun stopTranscoding(mediaSource: RemoteJellyfinMediaSource) {
-        if (mediaSource.playMethod == PlayMethod.TRANSCODE) {
-            withContext(Dispatchers.IO) {
-                hlsSegmentApi.stopEncodingProcess(
-                    deviceId = apiClient.deviceInfo.id,
-                    playSessionId = mediaSource.playSessionId,
-                )
+    /**
+     * Stop the server side playback session.
+     *
+     * Transcoding and remuxing (direct streaming) both run an ffmpeg process on the server that is
+     * not stopped by reporting the playback state, so the encoder has to be stopped explicitly.
+     * Live TV streams additionally keep a tuner busy until the live stream is closed.
+     */
+    suspend fun stopServerPlayback(mediaSource: RemoteJellyfinMediaSource) {
+        if (mediaSource.playMethod != PlayMethod.DIRECT_PLAY) {
+            try {
+                withContext(Dispatchers.IO) {
+                    hlsSegmentApi.stopEncodingProcess(
+                        deviceId = apiClient.deviceInfo.id,
+                        playSessionId = mediaSource.playSessionId,
+                    )
+                }
+            } catch (e: ApiClientException) {
+                Timber.w(e, "Failed to stop the encoding process")
+            }
+        }
+
+        mediaSource.liveStreamId?.let { liveStreamId ->
+            try {
+                withContext(Dispatchers.IO) {
+                    mediaInfoApi.closeLiveStream(liveStreamId)
+                }
+            } catch (e: ApiClientException) {
+                Timber.w(e, "Failed to close the live stream")
             }
         }
     }
