@@ -20,6 +20,21 @@
         tools:title="Star Wars: A New Hope" />
 
     <androidx.appcompat.widget.AppCompatImageButton
+        android:id="@+id/pip_button"
+        android:layout_width="@dimen/exo_bottom_controls_size"
+        android:layout_height="@dimen/exo_bottom_controls_size"
+        android:layout_marginTop="@dimen/exo_bottom_controls_margin"
+        android:layout_marginEnd="@dimen/exo_bottom_controls_margin"
+        android:background="@drawable/ripple_background_circular"
+        android:contentDescription="@string/pip_button_description"
+        android:padding="@dimen/exo_bottom_controls_padding"
+        android:src="@drawable/ic_picture_in_picture_white_24dp"
+        android:visibility="gone"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintTop_toTopOf="parent"
+        tools:visibility="visible" />
+
+    <androidx.appcompat.widget.AppCompatImageButton
         android:id="@+id/previous_button"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"

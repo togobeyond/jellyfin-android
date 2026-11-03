@@ -1,8 +1,8 @@
 package org.jellyfin.mobile.player.ui
 
-import android.app.Activity
 import android.app.PictureInPictureParams
 import android.content.pm.ActivityInfo
+import android.content.pm.PackageManager
 import android.content.res.Configuration
 import android.graphics.Rect
 import android.os.Build
@@ -56,6 +56,7 @@ import org.jellyfin.mobile.utils.toast
 import org.jellyfin.sdk.model.api.MediaSegmentDto
 import org.jellyfin.sdk.model.api.MediaStream
 import org.koin.android.ext.android.inject
+import timber.log.Timber
 import kotlin.math.max
 import androidx.media3.ui.R as Media3R
 
@@ -131,6 +132,9 @@ class PlayerFragment : Fragment(), BackPressInterceptor {
             // Update title and player menus
             toolbar.title = mediaSource.getName(requireContext())
             playerMenus?.onQueueItemChanged(mediaSource, viewModel.queueManager.hasNext())
+
+            // Keep the picture-in-picture window in sync with the current video
+            updatePictureInPictureParams()
         }
 
         // Handle fragment arguments, extract playback options and start playback
@@ -227,11 +231,19 @@ class PlayerFragment : Fragment(), BackPressInterceptor {
         fullscreenSwitcher.setOnClickListener {
             toggleFullscreen()
         }
+
+        // Handle picture-in-picture switcher
+        playerControlsBinding.pipButton.apply {
+            isVisible = isPictureInPictureSupported()
+            setOnClickListener { enterPictureInPicture() }
+        }
     }
 
     override fun onStart() {
         super.onStart()
         orientationListener.enable()
+        // Allow the system to move playback to picture-in-picture when the app is left
+        updatePictureInPictureParams()
     }
 
     override fun onResume() {
@@ -376,40 +388,124 @@ class PlayerFragment : Fragment(), BackPressInterceptor {
     }
 
     fun onUserLeaveHint() {
-        if (AndroidVersion.isAtLeastN && viewModel.playerOrNull != null) {
-            requireActivity().enterPictureInPicture()
+        enterPictureInPicture()
+    }
+
+    /**
+     * Whether picture-in-picture mode is supported on this device.
+     */
+    fun isPictureInPictureSupported(): Boolean {
+        val context = context ?: return false
+        return AndroidVersion.isAtLeastN &&
+            context.packageManager.hasSystemFeature(PackageManager.FEATURE_PICTURE_IN_PICTURE)
+    }
+
+    /**
+     * Move the current playback to a picture-in-picture window.
+     *
+     * @return true if picture-in-picture mode was entered
+     */
+    fun enterPictureInPicture(): Boolean {
+        val host = activity ?: return false
+        // There is nothing to show in picture-in-picture without an active player
+        if (viewModel.playerOrNull == null) return false
+        if (!isPictureInPictureSupported() || host.isInPictureInPictureMode) return false
+
+        return try {
+            if (AndroidVersion.isAtLeastO) {
+                host.enterPictureInPictureMode(createPictureInPictureParams())
+            } else {
+                @Suppress("DEPRECATION")
+                host.enterPictureInPictureMode()
+            }
+        } catch (e: IllegalStateException) {
+            Timber.w(e, "Unable to enter picture-in-picture mode")
+            false
+        } catch (e: IllegalArgumentException) {
+            Timber.w(e, "Invalid picture-in-picture parameters")
+            false
         }
     }
 
-    @Suppress("NestedBlockDepth")
-    @RequiresApi(Build.VERSION_CODES.N)
-    private fun Activity.enterPictureInPicture() {
-        if (AndroidVersion.isAtLeastO) {
-            val params = PictureInPictureParams.Builder().apply {
-                val aspectRational = currentVideoStream?.aspectRational?.let { aspectRational ->
+    /**
+     * Update the picture-in-picture parameters for the current playback.
+     *
+     * On Android 12+ this also enables "auto enter", which makes the system move the
+     * playback to picture-in-picture when the user leaves the app. Relying on
+     * [onUserLeaveHint] alone is not enough on newer versions because it is not called
+     * for every way of leaving the app (e.g. gesture navigation).
+     */
+    fun updatePictureInPictureParams() {
+        val host = activity ?: return
+        if (!AndroidVersion.isAtLeastO || !isPictureInPictureSupported() || host.isFinishing) return
+
+        runCatching {
+            host.setPictureInPictureParams(createPictureInPictureParams())
+        }.onFailure {
+            Timber.w(it, "Unable to update picture-in-picture params")
+        }
+    }
+
+    @RequiresApi(Build.VERSION_CODES.O)
+    private fun createPictureInPictureParams(): PictureInPictureParams =
+        PictureInPictureParams.Builder().apply {
+            currentVideoStream?.aspectRational?.let { aspectRational ->
+                setAspectRatio(
                     when {
                         aspectRational < PIP_MIN_RATIONAL -> PIP_MIN_RATIONAL
                         aspectRational > PIP_MAX_RATIONAL -> PIP_MAX_RATIONAL
                         else -> aspectRational
-                    }
+                    },
+                )
+            }
+
+            val contentFrame: View? = playerView.findViewById(Media3R.id.exo_content_frame)
+            contentFrame?.let {
+                if (it.width > 0 && it.height > 0) {
+                    val location = IntArray(2).also(it::getLocationInWindow)
+                    setSourceRectHint(
+                        Rect(
+                            location[0],
+                            location[1],
+                            location[0] + it.width,
+                            location[1] + it.height,
+                        ),
+                    )
                 }
-                setAspectRatio(aspectRational)
-                val contentFrame: View = playerView.findViewById(Media3R.id.exo_content_frame)
-                val contentRect = with(contentFrame) {
-                    val (x, y) = intArrayOf(0, 0).also(::getLocationInWindow)
-                    Rect(x, y, x + width, y + height)
-                }
-                setSourceRectHint(contentRect)
-            }.build()
-            enterPictureInPictureMode(params)
-        } else {
-            @Suppress("DEPRECATION")
-            enterPictureInPictureMode()
+            }
+
+            if (AndroidVersion.isAtLeastS) {
+                setAutoEnterEnabled(true)
+            }
+        }.build()
+
+    private fun disablePictureInPictureAutoEnter() {
+        if (!AndroidVersion.isAtLeastS) return
+        val host = activity ?: return
+
+        runCatching {
+            host.setPictureInPictureParams(
+                PictureInPictureParams.Builder()
+                    .setAutoEnterEnabled(false)
+                    .build(),
+            )
+        }.onFailure {
+            Timber.w(it, "Unable to disable picture-in-picture auto enter")
         }
     }
 
     override fun onPictureInPictureModeChanged(isInPictureInPictureMode: Boolean) {
+        super.onPictureInPictureModeChanged(isInPictureInPictureMode)
+        handlePictureInPictureModeChanged(isInPictureInPictureMode)
+    }
+
+    private fun handlePictureInPictureModeChanged(isInPictureInPictureMode: Boolean) {
+        if (_playerBinding == null) return
+
+        // Only the video should be visible inside the picture-in-picture window
         playerView.useController = !isInPictureInPictureMode
+        playerOverlay.isVisible = !isInPictureInPictureMode
+
         if (isInPictureInPictureMode) {
             playerMenus?.dismissPlaybackInfo()
             playerLockScreenHelper.hideUnlockButton()
@@ -444,6 +540,8 @@ class PlayerFragment : Fragment(), BackPressInterceptor {
 
     override fun onDestroy() {
         super.onDestroy()
+        // The player is gone, so leaving the app should not move anything to picture-in-picture anymore
+        disablePictureInPictureAutoEnter()
         with(requireActivity()) {
             // Reset screen orientation
             requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
