@@ -12,6 +12,7 @@ import org.jellyfin.sdk.model.api.MediaStreamType
 import org.jellyfin.sdk.model.api.PlayMethod
 import org.jellyfin.sdk.model.api.SubtitleDeliveryMethod
 import org.jellyfin.sdk.model.extensions.ticks
+import timber.log.Timber
 import java.util.UUID
 import kotlin.time.Duration
 
@@ -78,7 +79,10 @@ sealed class JellyfinMediaSource(
                     // In the latter case, subtitles are extracted from the source file by the server.
                     if (mediaStream.deliveryMethod == SubtitleDeliveryMethod.EXTERNAL) {
                         val deliveryUrl = mediaStream.deliveryUrl
-                        val mimeType = CodecHelpers.getSubtitleMimeType(mediaStream.codec)
+                        // Prefer the format of the delivered file: the server may convert the subtitle
+                        // (e.g. SAMI is served as SubRip), so the source codec alone is not reliable.
+                        val mimeType = deliveryUrl?.let(CodecHelpers::getSubtitleMimeTypeFromUrl)
+                            ?: CodecHelpers.getSubtitleMimeType(mediaStream.codec)
                         if (deliveryUrl != null && mimeType != null) {
                             externalSubtitles += ExternalSubtitleStream(
                                 index = mediaStream.index,
@@ -87,6 +91,8 @@ sealed class JellyfinMediaSource(
                                 displayTitle = mediaStream.displayTitle.orEmpty(),
                                 language = mediaStream.language ?: Constants.LANGUAGE_UNDEFINED,
                             )
+                        } else if (deliveryUrl != null) {
+                            Timber.w("Unsupported external subtitle codec '%s'", mediaStream.codec)
                         }
                     }
                 }

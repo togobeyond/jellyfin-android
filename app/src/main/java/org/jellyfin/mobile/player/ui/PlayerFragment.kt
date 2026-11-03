@@ -1,6 +1,7 @@
 package org.jellyfin.mobile.player.ui
 
 import android.app.PictureInPictureParams
+import android.content.Context
 import android.content.pm.ActivityInfo
 import android.content.pm.PackageManager
 import android.content.res.Configuration
@@ -14,9 +15,11 @@ import android.view.OrientationEventListener
 import android.view.View
 import android.view.ViewGroup
 import android.view.WindowManager.LayoutParams.BRIGHTNESS_OVERRIDE_NONE
+import android.view.accessibility.CaptioningManager
 import android.widget.ImageButton
 import androidx.annotation.RequiresApi
 import androidx.appcompat.widget.Toolbar
+import androidx.core.content.res.ResourcesCompat
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.isVisible
@@ -26,6 +29,7 @@ import androidx.fragment.app.Fragment
 import androidx.fragment.app.viewModels
 import androidx.lifecycle.lifecycleScope
 import androidx.media3.common.Player
+import androidx.media3.ui.CaptionStyleCompat
 import androidx.media3.ui.PlayerView
 import io.github.peerless2012.ass.media.AssHandler
 import io.github.peerless2012.ass.media.widget.AssSubtitleView
@@ -40,6 +44,7 @@ import org.jellyfin.mobile.player.PlayerViewModel
 import org.jellyfin.mobile.player.interaction.PlayOptions
 import org.jellyfin.mobile.player.interaction.PlayerWebPreferences
 import org.jellyfin.mobile.player.ui.playermenuhelper.PlayerMenuHelper
+import org.jellyfin.mobile.settings.SubtitleFont
 import org.jellyfin.mobile.utils.AndroidVersion
 import org.jellyfin.mobile.utils.BackPressInterceptor
 import org.jellyfin.mobile.utils.Constants
@@ -224,6 +229,9 @@ class PlayerFragment : Fragment(), BackPressInterceptor {
             }
         }
 
+        // Apply the subtitle font selected in the app settings
+        applySubtitleFont()
+
         playerLockScreenHelper = PlayerLockScreenHelper(this, playerBinding, orientationListener)
         playerGestureHelper = PlayerGestureHelper(this, playerBinding, playerLockScreenHelper)
 
@@ -254,10 +262,46 @@ class PlayerFragment : Fragment(), BackPressInterceptor {
             playerFullscreenHelper.enableFullscreen()
         }
 
+        // The subtitle font may have been changed in the app settings
+        applySubtitleFont()
+
         // If playback ended during picture in picture we'll return to the main app when PiP is closed
         if (viewModel.playerOrNull == null) {
             parentFragmentManager.popBackStack()
         }
+    }
+
+    /**
+     * Apply the subtitle font selected in the app settings to the player subtitle view.
+     *
+     * The font is applied on top of the caption style configured in the system settings, so the
+     * user configured colors, text size and edge style are preserved.
+     */
+    private fun applySubtitleFont() {
+        val subtitleView = playerView.subtitleView ?: return
+        val context = requireContext()
+        val captioningManager = context.getSystemService(Context.CAPTIONING_SERVICE) as? CaptioningManager
+        val systemStyle = captioningManager
+            ?.userStyle
+            ?.let(CaptionStyleCompat::createFromCaptionStyle)
+            ?: CaptionStyleCompat.DEFAULT
+        val typeface = SubtitleFont.fromValue(appPreferences.subtitleFont).fontRes
+            ?.let { fontRes -> ResourcesCompat.getFont(context, fontRes) }
+
+        subtitleView.setStyle(
+            if (typeface == null) {
+                systemStyle
+            } else {
+                CaptionStyleCompat(
+                    systemStyle.foregroundColor,
+                    systemStyle.backgroundColor,
+                    systemStyle.windowColor,
+                    systemStyle.edgeType,
+                    systemStyle.edgeColor,
+                    typeface,
+                )
+            },
+        )
     }
 
     /**
@@ -417,6 +461,7 @@ class PlayerFragment : Fragment(), BackPressInterceptor {
             } else {
                 @Suppress("DEPRECATION")
                 host.enterPictureInPictureMode()
+                true
             }
         } catch (e: IllegalStateException) {
             Timber.w(e, "Unable to enter picture-in-picture mode")

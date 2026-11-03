@@ -46,6 +46,7 @@ object Constants {
     const val NETWORK_BUFFER_EXTRA_LARGE = "extra_large"
     const val PREF_EXTERNAL_PLAYER_APP = "pref_external_player_app"
     const val PREF_SUBTITLE_STYLE = "pref_subtitle_style"
+    const val PREF_SUBTITLE_FONT = "pref_subtitle_font"
     const val PREF_STORAGE_LOCATION = "pref_storage_location"
     const val PREF_MEDIA_SEGMENT_ACTIONS = "pref_media_segment_actions"
 

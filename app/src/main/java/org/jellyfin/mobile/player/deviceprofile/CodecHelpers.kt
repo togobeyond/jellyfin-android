@@ -2,6 +2,7 @@ package org.jellyfin.mobile.player.deviceprofile
 
 import android.media.MediaCodecInfo.CodecProfileLevel
 import android.media.MediaFormat
+import android.net.Uri
 import androidx.media3.common.MimeTypes
 
 @Suppress("TooManyFunctions", "CyclomaticComplexMethod")
@@ -251,6 +252,19 @@ object CodecHelpers {
             "smi", "smil" -> "application/smil+xml"
             else -> null
         }
+    }
+
+    /**
+     * Get the subtitle mime type from a subtitle delivery URL, e.g. `.../Stream.srt?ApiKey=...`.
+     *
+     * The server converts subtitles to a format supported by the client, which may differ from the source
+     * codec of the subtitle stream (for example SAMI subtitles are delivered as SubRip). Prefer the format
+     * of the delivered file over the source codec.
+     */
+    fun getSubtitleMimeTypeFromUrl(deliveryUrl: String): String? {
+        val fileName = Uri.parse(deliveryUrl).lastPathSegment ?: return null
+        val extension = fileName.substringAfterLast('.', missingDelimiterValue = "")
+        return extension.takeIf { it.isNotEmpty() }?.let(::getSubtitleMimeType)
     }
 
     fun getAudioProfile(codec: String, profile: Int): String? = when (codec) {

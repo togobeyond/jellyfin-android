@@ -252,6 +252,13 @@ class SettingsFragment : Fragment(), BackPressInterceptor {
                 }
             }
         }
+        val subtitleFontOptions = SubtitleFont.entries.map { font ->
+            SelectionItem(font.value, font.labelRes)
+        }
+        singleChoice(Constants.PREF_SUBTITLE_FONT, subtitleFontOptions) {
+            titleRes = R.string.pref_subtitle_font
+            initialSelection = SubtitleFont.DEFAULT.value
+        }
         categoryHeader(PREF_CATEGORY_DOWNLOADS) {
             titleRes = R.string.pref_category_downloads
         }

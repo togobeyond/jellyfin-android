@@ -8,6 +8,7 @@ import org.jellyfin.mobile.downloads.DownloadMethod
 import org.jellyfin.mobile.player.mediasegments.MediaSegmentAction
 import org.jellyfin.mobile.player.mediasegments.toMediaSegmentActionsString
 import org.jellyfin.mobile.settings.ExternalPlayerPackage
+import org.jellyfin.mobile.settings.SubtitleFont
 import org.jellyfin.mobile.settings.VideoPlayerType
 import org.jellyfin.mobile.utils.Constants
 import org.jellyfin.sdk.model.api.MediaSegmentType
@@ -124,6 +125,14 @@ class AppPreferences(context: Context) {
 
     val exoPlayerDirectPlayAss: Boolean
         get() = sharedPreferences.getBoolean(Constants.PREF_EXOPLAYER_DIRECT_PLAY_ASS, false)
+
+    var subtitleFont: String
+        get() = sharedPreferences.getString(Constants.PREF_SUBTITLE_FONT, SubtitleFont.DEFAULT.value)!!
+        set(value) {
+            sharedPreferences.edit {
+                putString(Constants.PREF_SUBTITLE_FONT, value)
+            }
+        }
 
     val exoPlayerNetworkBuffer: String
         get() = sharedPreferences.getString(Constants.PREF_EXOPLAYER_NETWORK_BUFFER, Constants.NETWORK_BUFFER_AUTO)!!

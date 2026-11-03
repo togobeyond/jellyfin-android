@@ -103,6 +103,9 @@
     <string name="bluetooth_permission_granted">Bluetooth 접근 권한이 허용되었습니다</string>
     <string name="pref_exoplayer_direct_play_ass">직접 플레이시 SSA/ASS 자막 허용</string>
     <string name="pref_subtitle_style">자막 스타일 변경</string>
+    <string name="pref_subtitle_font">자막 글꼴</string>
+    <string name="subtitle_font_system">시스템 기본값</string>
+    <string name="subtitle_font_acinema_m">ACinemaM</string>
     <string name="player_error_unspecific_exception">플레이어에 문제가 발생했습니다</string>
     <string name="menu_item_hardware_decoding">하드웨어 디코딩</string>
     <string name="button_use_different_server">다른 서버 사용</string>
