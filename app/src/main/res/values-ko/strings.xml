@@ -106,6 +106,15 @@
     <string name="pref_subtitle_font">자막 글꼴</string>
     <string name="subtitle_font_system">시스템 기본값</string>
     <string name="subtitle_font_acinema_m">ACinemaM</string>
+    <string name="pref_live_tv_max_bitrate">라이브 TV 최대 비트레이트</string>
+    <string name="live_tv_bitrate_auto">자동 (제한 없음)</string>
+    <string name="live_tv_bitrate_20_mbps">20 Mbps</string>
+    <string name="live_tv_bitrate_15_mbps">15 Mbps</string>
+    <string name="live_tv_bitrate_12_mbps">12 Mbps</string>
+    <string name="live_tv_bitrate_10_mbps">10 Mbps</string>
+    <string name="live_tv_bitrate_8_mbps">8 Mbps</string>
+    <string name="live_tv_bitrate_6_mbps">6 Mbps</string>
+    <string name="live_tv_bitrate_4_mbps">4 Mbps</string>
     <string name="player_error_unspecific_exception">플레이어에 문제가 발생했습니다</string>
     <string name="menu_item_hardware_decoding">하드웨어 디코딩</string>
     <string name="button_use_different_server">다른 서버 사용</string>

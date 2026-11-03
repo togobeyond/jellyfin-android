@@ -196,6 +196,24 @@ class SettingsFragment : Fragment(), BackPressInterceptor {
             enabled = appPreferences.videoPlayerType == VideoPlayerType.EXO_PLAYER
         }
 
+        // Limit the bitrate of Live TV streams, high bitrate channels may not play smoothly
+        // on slower (remote) connections
+        val liveTvBitrateOptions = listOf(
+            SelectionItem(Constants.LIVE_TV_MAX_BITRATE_AUTO, R.string.live_tv_bitrate_auto),
+            SelectionItem("20000000", R.string.live_tv_bitrate_20_mbps),
+            SelectionItem("15000000", R.string.live_tv_bitrate_15_mbps),
+            SelectionItem("12000000", R.string.live_tv_bitrate_12_mbps),
+            SelectionItem("10000000", R.string.live_tv_bitrate_10_mbps),
+            SelectionItem("8000000", R.string.live_tv_bitrate_8_mbps),
+            SelectionItem("6000000", R.string.live_tv_bitrate_6_mbps),
+            SelectionItem("4000000", R.string.live_tv_bitrate_4_mbps),
+        )
+        singleChoice(Constants.PREF_LIVE_TV_MAX_BITRATE, liveTvBitrateOptions) {
+            titleRes = R.string.pref_live_tv_max_bitrate
+            initialSelection = Constants.LIVE_TV_MAX_BITRATE_DEFAULT
+            enabled = appPreferences.videoPlayerType == VideoPlayerType.EXO_PLAYER
+        }
+
         // Generate available external player options
         val packageManager = requireContext().packageManager
         val externalPlayerOptions = listOf(

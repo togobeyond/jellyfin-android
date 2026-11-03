@@ -140,6 +140,15 @@
     <string name="pref_subtitle_font">Subtitle font</string>
     <string name="subtitle_font_system">System default</string>
     <string name="subtitle_font_acinema_m">ACinemaM</string>
+    <string name="pref_live_tv_max_bitrate">Live TV maximum bitrate</string>
+    <string name="live_tv_bitrate_auto">Automatic (no limit)</string>
+    <string name="live_tv_bitrate_20_mbps">20 Mbps</string>
+    <string name="live_tv_bitrate_15_mbps">15 Mbps</string>
+    <string name="live_tv_bitrate_12_mbps">12 Mbps</string>
+    <string name="live_tv_bitrate_10_mbps">10 Mbps</string>
+    <string name="live_tv_bitrate_8_mbps">8 Mbps</string>
+    <string name="live_tv_bitrate_6_mbps">6 Mbps</string>
+    <string name="live_tv_bitrate_4_mbps">4 Mbps</string>
 
     <string name="pref_category_downloads">Downloads</string>
     <string name="pref_download_location">Download location</string>

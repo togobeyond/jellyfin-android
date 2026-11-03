@@ -54,6 +54,9 @@ import org.jellyfin.mobile.player.ui.DisplayPreferences
 import org.jellyfin.mobile.player.ui.PlayState
 import org.jellyfin.mobile.player.ui.playermenuhelper.PlayerMenuHelper
 import org.jellyfin.mobile.utils.Constants
+import org.jellyfin.mobile.utils.Constants.LIVE_BUFFER_POLL_INTERVAL_MS
+import org.jellyfin.mobile.utils.Constants.LIVE_BUFFER_TARGET_MS
+import org.jellyfin.mobile.utils.Constants.LIVE_BUFFER_TIMEOUT_MS
 import org.jellyfin.mobile.utils.Constants.SUPPORTED_VIDEO_PLAYER_PLAYBACK_ACTIONS
 import org.jellyfin.mobile.utils.applyDefaultAudioAttributes
 import org.jellyfin.mobile.utils.applyDefaultLocalAudioAttributes
@@ -140,6 +143,7 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application),
     private val eventLogger = EventLogger()
     private var analyticsCollector = buildAnalyticsCollector()
     private val initialTracksSelected = AtomicBoolean(false)
+    private val liveBufferPrepared = AtomicBoolean(false)
     private var fallbackPreferExtensionRenderers = false
     private var playSpeed = 1f
 
@@ -314,6 +318,7 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application),
         player.prepare()
 
         initialTracksSelected.set(false)
+        liveBufferPrepared.set(false)
 
         val startTime = jellyfinMediaSource.startTime
         if (startTime > Duration.ZERO) player.seekTo(startTime.inWholeMilliseconds)
@@ -732,6 +737,30 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application),
         releasePlayer()
     }
 
+    /**
+     * Wait for a live stream to buffer before starting playback.
+     *
+     * Live streams are produced by the server in real time, so starting playback at the live edge
+     * leaves no buffer and stalls whenever a segment arrives a little late. Pausing briefly while
+     * the playlist grows gives the player enough headroom to play smoothly.
+     */
+    private fun prepareLivePlayback(player: Player) {
+        val mediaSource = mediaSourceOrNull ?: return
+        if (!mediaSource.sourceInfo.isInfiniteStream) return
+        if (!liveBufferPrepared.compareAndSet(false, true)) return
+        if (!player.playWhenReady) return
+
+        player.pause()
+        viewModelScope.launch {
+            val timeout = System.currentTimeMillis() + LIVE_BUFFER_TIMEOUT_MS
+            while (System.currentTimeMillis() < timeout) {
+                if (player.bufferedPosition - player.currentPosition >= LIVE_BUFFER_TARGET_MS) break
+                delay(LIVE_BUFFER_POLL_INTERVAL_MS)
+            }
+            player.play()
+        }
+    }
+
     private fun setVolume(percent: Int) {
         if (audioManager.isVolumeFixed) return
         val stream = AudioManager.STREAM_MUSIC
@@ -753,6 +782,7 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application),
             if (!initialTracksSelected.getAndSet(true)) {
                 trackSelectionHelper.selectInitialTracks()
             }
+            prepareLivePlayback(player)
             mediaSession.isActive = true
             notificationHelper.postNotification()
         }

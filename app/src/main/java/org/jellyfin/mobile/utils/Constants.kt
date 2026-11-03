@@ -47,6 +47,16 @@ object Constants {
     const val PREF_EXTERNAL_PLAYER_APP = "pref_external_player_app"
     const val PREF_SUBTITLE_STYLE = "pref_subtitle_style"
     const val PREF_SUBTITLE_FONT = "pref_subtitle_font"
+    const val PREF_LIVE_TV_MAX_BITRATE = "pref_live_tv_max_bitrate"
+
+    const val LIVE_TV_MAX_BITRATE_AUTO = "auto"
+    const val LIVE_TV_MAX_BITRATE_DEFAULT = "12000000"
+
+    // Live TV buffering: wait until enough of the stream is buffered before starting playback
+    const val LIVE_BUFFER_TARGET_MS = 15_000L
+    const val LIVE_BUFFER_TIMEOUT_MS = 30_000L
+    const val LIVE_BUFFER_POLL_INTERVAL_MS = 250L
+    const val LIVE_TARGET_OFFSET_MS = 15_000L
     const val PREF_STORAGE_LOCATION = "pref_storage_location"
     const val PREF_MEDIA_SEGMENT_ACTIONS = "pref_media_segment_actions"
 

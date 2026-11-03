@@ -11,6 +11,7 @@ import androidx.media3.exoplayer.source.MediaSource
 import androidx.media3.exoplayer.source.MergingMediaSource
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import org.jellyfin.mobile.app.AppPreferences
 import org.jellyfin.mobile.data.dao.DownloadDao
 import org.jellyfin.mobile.downloads.DownloadFileType
 import org.jellyfin.mobile.player.PlayerException
@@ -24,6 +25,7 @@ import org.jellyfin.mobile.player.source.LocalJellyfinMediaSource
 import org.jellyfin.mobile.player.source.MediaSourceResolver
 import org.jellyfin.mobile.player.source.PlaybackDetails
 import org.jellyfin.mobile.player.source.RemoteJellyfinMediaSource
+import org.jellyfin.mobile.utils.Constants.LIVE_TARGET_OFFSET_MS
 import org.jellyfin.sdk.api.client.ApiClient
 import org.jellyfin.sdk.api.client.extensions.systemApi
 import org.jellyfin.sdk.api.client.extensions.videosApi
@@ -48,6 +50,7 @@ class QueueManager(
     private val videosApi: VideosApi = apiClient.videosApi
     private val mediaSourceResolver: MediaSourceResolver by inject()
     private val deviceProfileBuilder: DeviceProfileBuilder by inject()
+    private val appPreferences: AppPreferences by inject()
     private val downloadDao: DownloadDao by inject()
     private val deviceProfile = deviceProfileBuilder.getDeviceProfile()
 
@@ -168,6 +171,7 @@ class QueueManager(
             mediaSourceId = mediaSourceId,
             deviceProfile = deviceProfile,
             maxStreamingBitrate = maxStreamingBitrate,
+            liveTvMaxStreamingBitrate = appPreferences.liveTvMaxBitrate,
             startTime = startTime,
             audioStreamIndex = audioStreamIndex,
             subtitleStreamIndex = subtitleStreamIndex,
@@ -396,6 +400,17 @@ class QueueManager(
             .setUri(url)
             .setMimeType(forcedMimeType)
             .setSubtitleConfigurations(externalSubtitleConfigurations)
+            .apply {
+                if (source.sourceInfo.isInfiniteStream) {
+                    // Play live streams behind the live edge to have enough buffer to survive
+                    // segments that arrive late
+                    setLiveConfiguration(
+                        MediaItem.LiveConfiguration.Builder()
+                            .setTargetOffsetMs(LIVE_TARGET_OFFSET_MS)
+                            .build(),
+                    )
+                }
+            }
             .build()
 
         return factory.createMediaSource(mediaItem)

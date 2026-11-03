@@ -9,6 +9,7 @@ import org.jellyfin.sdk.api.client.extensions.mediaInfoApi
 import org.jellyfin.sdk.api.client.extensions.userLibraryApi
 import org.jellyfin.sdk.api.operations.MediaInfoApi
 import org.jellyfin.sdk.api.operations.UserLibraryApi
+import org.jellyfin.sdk.model.api.BaseItemKind
 import org.jellyfin.sdk.model.api.DeviceProfile
 import org.jellyfin.sdk.model.api.MediaSourceInfo
 import org.jellyfin.sdk.model.api.PlaybackInfoDto
@@ -28,6 +29,7 @@ class MediaSourceResolver(private val apiClient: ApiClient) {
         mediaSourceId: String? = null,
         deviceProfile: DeviceProfile? = null,
         maxStreamingBitrate: Int? = null,
+        liveTvMaxStreamingBitrate: Int? = null,
         startTime: Duration? = null,
         audioStreamIndex: Int? = null,
         subtitleStreamIndex: Int? = null,
@@ -35,6 +37,14 @@ class MediaSourceResolver(private val apiClient: ApiClient) {
         enableDirectPlay: Boolean? = null,
         enableDirectStream: Boolean? = null,
     ): Result<RemoteJellyfinMediaSource> {
+        // Load the item first when a Live TV bitrate limit is configured, the item type decides
+        // whether the limit is applied to the playback request
+        val prefetchedItem = if (liveTvMaxStreamingBitrate != null) loadItem(itemId) else null
+        val effectiveMaxStreamingBitrate = when {
+            prefetchedItem?.type?.let { type -> type in LIVE_TV_ITEM_TYPES } == true -> liveTvMaxStreamingBitrate
+            else -> maxStreamingBitrate
+        }
+
         // Load media source info
         val playSessionId: String
         val mediaSourceInfo: MediaSourceInfo = try {
@@ -51,7 +61,7 @@ class MediaSourceResolver(private val apiClient: ApiClient) {
                             audioStreamIndex != null || subtitleStreamIndex != null
                         },
                         deviceProfile = deviceProfile,
-                        maxStreamingBitrate = maxStreamingBitrate,
+                        maxStreamingBitrate = effectiveMaxStreamingBitrate,
                         startTimeTicks = startTime?.inWholeTicks,
                         audioStreamIndex = audioStreamIndex,
                         subtitleStreamIndex = subtitleStreamIndex,
@@ -73,15 +83,7 @@ class MediaSourceResolver(private val apiClient: ApiClient) {
         }
 
         // Load additional item info if possible
-
-        val item = try {
-            withContext(Dispatchers.IO) {
-                userLibraryApi.getItem(itemId).content
-            }
-        } catch (e: ApiClientException) {
-            Timber.e(e, "Failed to load item for media source $itemId")
-            null
-        }
+        val item = prefetchedItem ?: loadItem(itemId)
 
         // Create JellyfinMediaSource
         return try {
@@ -91,7 +93,7 @@ class MediaSourceResolver(private val apiClient: ApiClient) {
                 sourceInfo = mediaSourceInfo,
                 playSessionId = playSessionId,
                 liveStreamId = mediaSourceInfo.liveStreamId,
-                maxStreamingBitrate = maxStreamingBitrate,
+                maxStreamingBitrate = effectiveMaxStreamingBitrate,
                 playbackDetails = PlaybackDetails(startTime, audioStreamIndex, subtitleStreamIndex),
             )
             Result.success(source)
@@ -99,5 +101,24 @@ class MediaSourceResolver(private val apiClient: ApiClient) {
             Timber.e(e, "Cannot create JellyfinMediaSource")
             Result.failure(PlayerException.UnsupportedContent(e))
         }
+    }
+
+    private suspend fun loadItem(itemId: UUID) = try {
+        withContext(Dispatchers.IO) {
+            userLibraryApi.getItem(itemId).content
+        }
+    } catch (e: ApiClientException) {
+        Timber.e(e, "Failed to load item for media source $itemId")
+        null
+    }
+
+    companion object {
+        private val LIVE_TV_ITEM_TYPES = setOf(
+            BaseItemKind.LIVE_TV_CHANNEL,
+            BaseItemKind.LIVE_TV_PROGRAM,
+            BaseItemKind.PROGRAM,
+            BaseItemKind.TV_CHANNEL,
+            BaseItemKind.TV_PROGRAM,
+        )
     }
 }

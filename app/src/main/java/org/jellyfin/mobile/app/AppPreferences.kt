@@ -126,6 +126,23 @@ class AppPreferences(context: Context) {
     val exoPlayerDirectPlayAss: Boolean
         get() = sharedPreferences.getBoolean(Constants.PREF_EXOPLAYER_DIRECT_PLAY_ASS, false)
 
+    /**
+     * Maximum streaming bitrate for Live TV, or null to use the bitrate requested by the web client.
+     */
+    var liveTvMaxBitrate: Int?
+        get() = sharedPreferences
+            .getString(Constants.PREF_LIVE_TV_MAX_BITRATE, Constants.LIVE_TV_MAX_BITRATE_DEFAULT)
+            ?.takeUnless { value -> value == Constants.LIVE_TV_MAX_BITRATE_AUTO }
+            ?.toIntOrNull()
+        set(value) {
+            sharedPreferences.edit {
+                putString(
+                    Constants.PREF_LIVE_TV_MAX_BITRATE,
+                    value?.toString() ?: Constants.LIVE_TV_MAX_BITRATE_AUTO,
+                )
+            }
+        }
+
     var subtitleFont: String
         get() = sharedPreferences.getString(Constants.PREF_SUBTITLE_FONT, SubtitleFont.DEFAULT.value)!!
         set(value) {
